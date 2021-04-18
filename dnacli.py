@@ -166,6 +166,63 @@ class DNACcli:
                     print("Command: %s " % key)
                     print(value)
 
+    def trace_path(self, srcip, destip, wait=20):
+        url = self.__url('dna/intent/api/v1/flow-analysis')
+        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
+
+        payload = {
+            "sourceIP": srcip,
+            "destIP": destip
+        }
+
+        payload_json = json.dumps(payload)
+        resp = requests.post(url, headers=hdr, data=payload_json)
+        answer = resp.json()
+        flowAnalysisId = answer['response']['flowAnalysisId']
+
+        while 1:
+            flow_url = self.__url('dna/intent/api/v1/flow-analysis/%s' % flowAnalysisId)
+
+            flow_resp = requests.get(flow_url, headers=hdr)
+            flow_answer = flow_resp.json()
+
+            if flow_resp.status_code == 200:
+                if flow_answer['response']['request']['status'] == "COMPLETED":
+                    break
+
+            time.sleep(1)
+            print("Wait for response ... break in %s seconds or CTRL-C to abort." % wait)
+            wait -= 1
+
+            if wait == 0:
+                break
+
+        print("{0:30}{1:50}".format("Source:", srcip))
+        print("{0:30}{1:50}".format("Destination:", destip))
+        print("Path:")
+        print("="*80)
+        for element in flow_answer['response']['networkElementsInfo']:
+
+            for key, value in element.items():
+                if key != "id":
+                    if isinstance(value, dict):
+                        c = 0
+                        for k, v in value.items():
+                            if c == 0:
+                                print("{0:30}{1:50}".format(key, str(v)))
+                                c += 1
+                            else:
+                                print("{0:30}{1:50}".format("", str(v)))
+                    else:
+                        print("{0:30}{1:50}".format(key, str(value)))
+
+            print("-" * 80)
+
+
+
+
+
+
 
 if __name__ == '__main__':
     dna = DNACcli(DNAC_URL, DNAC_USER, DNAC_PASSWORD)
