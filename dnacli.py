@@ -46,6 +46,19 @@ class DNACcli:
         device_json = resp.json()
         return device_json
 
+    def __dict_to_str(self, i_dict):
+        buffer = ""
+        if isinstance(i_dict, list):
+            for item in i_dict:
+                for key, value in item.items():
+                    if key != "id":
+                        buffer += "%s: %s " % (str(key), str(value))
+        else:
+            for key, value in i_dict.items():
+                if key != "id":
+                    buffer += "%s: %s " % (str(key), str(value))
+        return buffer
+
     def get_device_list(self):
         device_list = self.__get_device_list_json()
 
@@ -209,10 +222,10 @@ class DNACcli:
                         c = 0
                         for k, v in value.items():
                             if c == 0:
-                                print("{0:30}{1:50}".format(key, str(v)))
+                                print("{0:30}{1:50}".format(key, str(self.__dict_to_str(v))))
                                 c += 1
                             else:
-                                print("{0:30}{1:50}".format("", str(v)))
+                                print("{0:30}{1:50}".format("", str(self.__dict_to_str(v))))
                     else:
                         print("{0:30}{1:50}".format(key, str(value)))
 
