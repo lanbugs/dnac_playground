@@ -11,7 +11,7 @@ A script to interact with DNA center from CLI, written in Python.
 
 ```
 python dnacli.py --help
-INFO: Showing help with the command 'dnacli2.py -- --help'.
+INFO: Showing help with the command 'dnacli.py -- --help'.
 
 NAME
     dnacli.py
