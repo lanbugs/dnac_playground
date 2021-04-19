@@ -38,7 +38,7 @@ class DNACcli:
         resp = requests.post(url, auth=HTTPBasicAuth(self.__DNAC_USER, self.__DNAC_PASSWORD))
         self.__token = resp.json()['Token']
 
-    def get_config(self):
+    def __get_config(self):
         print(self.__DNAC_URL, self.__DNAC_USER, self.__DNAC_PASSWORD)
 
     def __get(self, surl, params=None):
@@ -75,6 +75,7 @@ class DNACcli:
         return buffer
 
     def get_device_list(self):
+        """Get device list."""
         device_list = self.__get('api/v1/network-device')
 
         print("{0:42}{1:17}{2:12}{3:18}{4:12}{5:16}{6:15}".
@@ -96,6 +97,7 @@ class DNACcli:
                              device['role'], uptime))
 
     def get_interfaces(self, device_name):
+        """Get interfaces of given device."""
         # determine deviceId
         device_list = self.__get('api/v1/network-device')
 
@@ -119,6 +121,7 @@ class DNACcli:
                          str(int['lastUpdated'])))
 
     def run_cmd(self, device_name, command, wait=20):
+        """Execute command on device."""
         # determine deviceId
         device_list = self.__get('api/v1/network-device')
 
@@ -177,6 +180,7 @@ class DNACcli:
                     print(value)
 
     def trace_path(self, srcip, destip, wait=20):
+        """Trace path between 2 ip addresses."""
 
         payload = {
             "sourceIP": srcip,
@@ -222,6 +226,7 @@ class DNACcli:
             print("-" * 80)
 
     def backup(self, device_name, wait=20):
+        """Create backup of given device."""
         # determine deviceId
         device_list = self.__get('api/v1/network-device')
 
@@ -269,13 +274,14 @@ class DNACcli:
                 print ("Something went wrong")
 
     def client_detail(self, mac):
+        """Get client details to given mac address."""
         # DEV
         params = {
             "macAddress": mac
         }
-        
+
         result = self.__get('dna/intent/api/v1/client-detail', params=params)
-        
+
         from pprint import pprint
         pprint(result)
 
