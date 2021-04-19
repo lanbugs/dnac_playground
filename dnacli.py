@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 import fire
+import loguru
 import requests
 from requests.auth import HTTPBasicAuth
 import json
 import time
+from loguru import logger
 
 ########################################################################################################################
 # dnacli.py
@@ -18,7 +20,7 @@ DNAC_URL = "https://sandboxdnac.cisco.com/"
 DNAC_USER = "devnetuser"
 DNAC_PASSWORD = "Cisco123!"
 
-
+@logger.catch
 class DNACcli:
 
     def __init__(self, DNAC_URL, DNAC_USER, DNAC_PASSWORD):
@@ -39,10 +41,23 @@ class DNACcli:
     def get_config(self):
         print(self.__DNAC_URL, self.__DNAC_USER, self.__DNAC_PASSWORD)
 
+    def __get(self, surl, params=None):
+        url = self.__url(surl)
+        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
+        resp = requests.get(url, headers=hdr, params=params)
+        return resp.json()
+
+    def __post(self, surl, params=None, payload={}):
+        url = self.__url(surl)
+        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
+        payload_json = json.dumps(payload)
+        resp = requests.post(url, headers=hdr, params=params, data=payload_json)
+        return resp.json()
+
     def __get_device_list_json(self):
         url = self.__url('api/v1/network-device')
         hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
-        resp = requests.get(url, headers=hdr)
+        resp = requests.get(url, headers=hdr, params=None)
         device_json = resp.json()
         return device_json
 
@@ -60,7 +75,7 @@ class DNACcli:
         return buffer
 
     def get_device_list(self):
-        device_list = self.__get_device_list_json()
+        device_list = self.__get('api/v1/network-device')
 
         print("{0:42}{1:17}{2:12}{3:18}{4:12}{5:16}{6:15}".
               format("hostname", "mgmt IP", "serial", "platformId", "SW Version", "role", "Uptime"))
@@ -82,17 +97,14 @@ class DNACcli:
 
     def get_interfaces(self, device_name):
         # determine deviceId
-        device_list = self.__get_device_list_json()
+        device_list = self.__get('api/v1/network-device')
 
         for device in device_list['response']:
             if device_name == device['hostname']:
                 device_id = device['id']
 
-        url = self.__url('api/v1/interface')
-        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
-        querystring = { "deviceId": device_id}
-        resp = requests.get(url, headers=hdr, params=querystring)
-        interface_info_json = resp.json()
+        params = {"deviceId": device_id}
+        interface_info_json = self.__get('api/v1/interface', params=params)
 
         print("{0:42}{1:20}{2:14}{3:18}{4:17}{5:10}{6:15}".
               format("portName", "vlanId", "portMode", "portType", "duplex", "status", "lastUpdated"))
@@ -108,40 +120,28 @@ class DNACcli:
 
     def run_cmd(self, device_name, command, wait=20):
         # determine deviceId
-        device_list = self.__get_device_list_json()
+        device_list = self.__get('api/v1/network-device')
 
         for device in device_list['response']:
             if device_name == device['hostname']:
                 device_id = device['id']
 
-        url = self.__url('api/v1/network-device-poller/cli/read-request')
-        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
         params = {'deviceId': device_id}
-
         payload = {
             "name" : command,
             "commands" : [ command ],
             "deviceUuids" : [ device_id ]
         }
 
-        payload_json = json.dumps(payload)
-
-        resp = requests.post(url, headers=hdr, params=params, data=payload_json)
-
-        answer = resp.json()
+        answer = self.__post('api/v1/network-device-poller/cli/read-request', params=params, payload=payload)
 
         print("Task %s created." % answer['response']['taskId'])
 
-        task_url = self.__url('api/v1/task/%s' % answer['response']['taskId'])
-
         while 1:
-            task_resp = requests.get(task_url, headers=hdr)
+            answer_task = self.__get('api/v1/task/%s' % answer['response']['taskId'])
 
-            if task_resp.status_code == 200:
-                answer_task = task_resp.json()
-
-                if "fileId" in answer_task['response']['progress']:
-                    break
+            if "fileId" in answer_task['response']['progress']:
+               break
 
             time.sleep(1)
             print("Wait for response ... break in %s seconds or CTRL-C to abort." % wait)
@@ -154,10 +154,7 @@ class DNACcli:
         progress = json.loads(progress_json)
         fileId = progress['fileId']
 
-        url_file = self.__url('api/v1/file/%s' % fileId)
-        resp_file = requests.get(url_file, headers=hdr)
-
-        results = resp_file.json()
+        results = self.__get('api/v1/file/%s' % fileId)
 
         for result in results:
             if len(result['commandResponses']['SUCCESS']) > 0:
@@ -180,28 +177,21 @@ class DNACcli:
                     print(value)
 
     def trace_path(self, srcip, destip, wait=20):
-        url = self.__url('dna/intent/api/v1/flow-analysis')
-        hdr = {'x-auth-token': self.__token, 'content-type': 'application/json'}
 
         payload = {
             "sourceIP": srcip,
             "destIP": destip
         }
 
-        payload_json = json.dumps(payload)
-        resp = requests.post(url, headers=hdr, data=payload_json)
-        answer = resp.json()
+        answer = self.__post('dna/intent/api/v1/flow-analysis', payload=payload)
+
         flowAnalysisId = answer['response']['flowAnalysisId']
 
         while 1:
-            flow_url = self.__url('dna/intent/api/v1/flow-analysis/%s' % flowAnalysisId)
+            flow_answer = self.__get('dna/intent/api/v1/flow-analysis/%s' % flowAnalysisId)
 
-            flow_resp = requests.get(flow_url, headers=hdr)
-            flow_answer = flow_resp.json()
-
-            if flow_resp.status_code == 200:
-                if flow_answer['response']['request']['status'] == "COMPLETED":
-                    break
+            if flow_answer['response']['request']['status'] == "COMPLETED":
+                break
 
             time.sleep(1)
             print("Wait for response ... break in %s seconds or CTRL-C to abort." % wait)
@@ -231,10 +221,63 @@ class DNACcli:
 
             print("-" * 80)
 
+    def backup(self, device_name, wait=20):
+        # determine deviceId
+        device_list = self.__get('api/v1/network-device')
 
+        for device in device_list['response']:
+            if device_name == device['hostname']:
+                device_id = device['id']
 
+        params = {'deviceId': device_id}
+        payload = {
+            "name" : "show run",
+            "commands" : ["show run"],
+            "deviceUuids" : [device_id]
+        }
 
+        answer = self.__post('api/v1/network-device-poller/cli/read-request', params=params, payload=payload)
 
+        print("Task %s created." % answer['response']['taskId'])
+
+        while 1:
+            answer_task = self.__get('api/v1/task/%s' % answer['response']['taskId'])
+            if "fileId" in answer_task['response']['progress']:
+               break
+            time.sleep(1)
+            print("Wait for response ... break in %s seconds or CTRL-C to abort." % wait)
+            wait -= 1
+            if wait == 0:
+                break
+
+        progress_json = answer_task['response']['progress']
+        progress = json.loads(progress_json)
+        fileId = progress['fileId']
+
+        results = self.__get('api/v1/file/%s' % fileId)
+
+        for result in results:
+            if len(result['commandResponses']['SUCCESS']) > 0:
+                print("SUCCESS:")
+                print("-----------------------------------------------------------------------------------------------")
+                for key, value in result['commandResponses']['SUCCESS'].items():
+                    print("Command: %s " % key)
+                    print("Stored to: %s.txt" % device_name)
+                    with open("%s.txt" % device_name, "w") as f:
+                        f.write(value)
+            else:
+                print ("Something went wrong")
+
+    def client_detail(self, mac):
+        # DEV
+        params = {
+            "macAddress": mac
+        }
+        
+        result = self.__get('dna/intent/api/v1/client-detail', params=params)
+        
+        from pprint import pprint
+        pprint(result)
 
 
 if __name__ == '__main__':
