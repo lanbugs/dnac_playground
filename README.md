@@ -10,7 +10,8 @@ this is my Cisco DNA Center playground.
 A script to interact with DNA center from CLI, written in Python.
 
 ```
-INFO: Showing help with the command 'dnacli.py -- --help'.
+python dnacli.py --help
+INFO: Showing help with the command 'dnacli2.py -- --help'.
 
 NAME
     dnacli.py
@@ -21,14 +22,23 @@ SYNOPSIS
 COMMANDS
     COMMAND is one of the following:
 
-     get_config
+     backup
+       Create backup of given device.
+
+     client_detail
+       Get client details to given mac address.
 
      get_device_list
+       Get device list.
 
      get_interfaces
+       Get interfaces of given device.
 
      run_cmd
+       Execute command on device.
 
+     trace_path
+       Trace path between 2 ip addresses.
 
 ```
 
